@@ -4,6 +4,52 @@ import config from "../config/config.js";
 import userModel from "../models/user.model.js";
 import sessionModel from "../models/session.model.js";
 
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await userModel.findOne({ email });
+  if (!user) {
+    return res.status(400).json({ message: "invalid email or password" });
+  }
+
+  const isValid = await bcrypt.compare(password, user.password);
+  if (!isValid) {
+    return res.status(400).json({ message: "invalid email or password" });
+  }
+
+  const session = await sessionModel.create({
+    user: user._id,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  const refreshToken = jwt.sign(
+    { id: user._id, sessionId: session._id },
+    config.JWT_KEY,
+    { expiresIn: "7d" },
+  );
+  const accessToken = jwt.sign(
+    { id: user._id, sessionId: session._id },
+    config.JWT_KEY,
+    { expiresIn: "15m" },
+  );
+
+  const salt = await bcrypt.genSalt(10);
+  const hash = await bcrypt.hash(refreshToken, salt);
+  session.refreshTokenHash = hash;
+  await session.save();
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+  res
+    .status(200)
+    .json({ message: "login sucessfull", accessToken: accessToken });
+};
+
 export const registerUser = async (req, res) => {
   const { username, email, password } = req.body;
   const userExists = await userModel.findOne({
@@ -151,4 +197,22 @@ export const logout = async (req, res) => {
 
   res.clearCookie("refreshToken");
   res.status(200).json({ message: "logged out successfully" });
+};
+
+export const logoutFromAll = async (req, res) => {
+  const sessionToken = req.headers.authorization.split(" ")[1];
+  const decoded = jwt.verify(sessionToken, config.JWT_KEY);
+
+  const session = await sessionModel.updateMany(
+    {
+      user: decoded.id,
+      revoke: false,
+    },
+    {
+      revoke: true,
+    },
+  );
+
+  res.clearCookie("refreshToken");
+  res.status(200).json({ message: "logout from all devices successful" });
 };
