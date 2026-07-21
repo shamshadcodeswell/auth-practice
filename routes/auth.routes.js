@@ -7,3 +7,5 @@ router.post("/register", auth.registerUser);
 
 router.get("/getMe", auth.getMe);
 export default router;
+
+router.get("/refresh", auth.refreshToken);

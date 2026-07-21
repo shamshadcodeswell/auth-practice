@@ -55,3 +55,33 @@ export const getMe = async (req, res) => {
     },
   });
 };
+
+export const refreshToken = async (req, res) => {
+  const oldRefreshToken = req.cookies.refreshToken;
+  if (!oldRefreshToken) {
+    return res.status(401).json({
+      message: "refresh token not found",
+    });
+  }
+
+  const decoded = jwt.verify(oldRefreshToken, config.JWT_KEY);
+
+  const newRefreshToken = jwt.sign({ id: decoded.id }, config.JWT_KEY, {
+    expiresIn: "7d",
+  });
+
+  const newAccessToken = jwt.sign({ id: decoded.id }, config.JWT_KEY, {
+    expiresIn: "15m",
+  });
+
+  res.cookie("refreshToken", newRefreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+  res.status(200).json({
+    message: "access token refreshed",
+    accessToken: newAccessToken,
+  });
+};
