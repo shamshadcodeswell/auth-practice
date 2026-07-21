@@ -20,17 +20,38 @@ export const registerUser = async (req, res) => {
   };
   const createdUser = await userModel.create(newUser);
 
-  const token = jwt.sign({ id: createdUser._id }, config.JWT_KEY, {
-    expiresIn: "1h",
+  const accessToken = jwt.sign({ id: createdUser._id }, config.JWT_KEY, {
+    expiresIn: "1d",
   });
-  res.cookie("token", token);
+  const refreshToken = jwt.sign({ id: createdUser._id }, config.JWT_KEY, {
+    expiresIn: "7d",
+  });
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
   res.status(201).json({
     message: "user created successfully",
     user: {
       username: createdUser.username,
       email: createdUser.email,
-      password: password,
     },
-    token: token,
+    accesstoken: accessToken,
+  });
+};
+
+export const getMe = async (req, res) => {
+  const tokenRecieved = req.headers.authorization.split(" ")[1];
+  const decoded = jwt.verify(tokenRecieved, config.JWT_KEY);
+
+  const user = await userModel.findById(decoded.id);
+  res.status(200).json({
+    message: "fetched successfully",
+    user: {
+      username: user.username,
+      email: user.email,
+    },
   });
 };
