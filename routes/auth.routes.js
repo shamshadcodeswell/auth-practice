@@ -9,3 +9,5 @@ router.get("/getMe", auth.getMe);
 export default router;
 
 router.get("/refresh", auth.refreshToken);
+
+router.get("/logout", auth.logout);
